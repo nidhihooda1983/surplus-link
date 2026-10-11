@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer-when-downgrade" />
+  <title>SurplusLink | Hyperlocal B2B Engine & Marketplace</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              200: '#a7f3d0',
+              300: '#6ee7b7',
+              400: '#34d399',
+              500: '#10b981', // Emerald primary
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+              950: '#022c22',
+            },
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Leaflet CSS & JS for OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #10b981;
+    }
+    /* Leaflet popup styling in dark mode */
+    .leaflet-popup-content-wrapper {
+      background: #0f172a !important;
+      color: #f8fafc !important;
+      border: 1px solid #334155;
+      border-radius: 0.75rem;
+      box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+    }
+    .leaflet-popup-tip {
+      background: #0f172a !important;
+    }
+    .leaflet-control-layers {
+      background: #0f172a !important;
+      color: #f8fafc !important;
+      border: 1px solid #334155 !important;
+      border-radius: 0.75rem !important;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5) !important;
+      font-size: 11px !important;
+      padding: 6px 10px !important;
+    }
+    .leaflet-control-layers-expanded {
+      background: #0f172a !important;
+      color: #f8fafc !important;
+    }
+    .leaflet-control-layers label {
+      color: #cbd5e1 !important;
+      margin-bottom: 3px;
+      cursor: pointer;
+    }
+    .pulse-radar {
+      position: relative;
+    }
+    .pulse-radar::after {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      border-radius: 50%;
+      background: rgba(16, 185, 129, 0.4);
+      animation: pulseAnimation 2s infinite;
+      z-index: -1;
+    }
+    @keyframes pulseAnimation {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      70% { transform: scale(1.6); opacity: 0; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo & Badge -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xl font-bold tracking-tight text-white">Surplus<span class="text-brand-400">Link</span></span>
+            <span class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand-950 border border-brand-800/80 text-brand-300">B2B Engine</span>
+          </div>
+          <p class="text-xs text-slate-400">Hyperlocal Commercial Lead Generation</p>
+        </div>
+      </div>
+
+      <!-- Center System Stat Pills -->
+      <div class="hidden md:flex items-center gap-6 text-sm">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-slate-400">5km Hyperlocal Radius:</span>
+          <span class="font-semibold text-slate-200" id="stat-radius">Active</span>
+        </div>
+        <div class="h-4 w-px bg-slate-800"></div>
+        <div class="flex items-center gap-2">
+          <span class="text-slate-400">Listings:</span>
+          <span class="font-semibold text-brand-400" id="stat-listings-count">0</span>
+        </div>
+        <div class="h-4 w-px bg-slate-800"></div>
+        <div class="flex items-center gap-2">
+          <span class="text-slate-400">Commercial Leads:</span>
+          <span class="font-semibold text-emerald-400" id="stat-leads-count">0</span>
+        </div>
+      </div>
+
+      <!-- Right Action Controls -->
+      <div class="flex items-center gap-3">
+        <!-- Supabase Connection Status Button -->
+        <button id="btn-open-config" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700/80 text-xs font-medium transition text-slate-300 hover:text-white">
+          <span id="conn-indicator" class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span id="conn-text">Checking Supabase...</span>
+          <svg class="w-3.5 h-3.5 text-slate-400 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+
+        <!-- Manual Refresh Button -->
+        <button id="btn-refresh" title="Sync now with Supabase" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition">
+          <svg id="icon-refresh" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Offline / Demo Notice Banner (Shown when using mock data or placeholder keys) -->
+  <div id="notice-banner" class="hidden bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border-b border-amber-800/50 px-4 py-2 text-xs text-amber-300 flex items-center justify-between">
+    <div class="flex items-center gap-2 max-w-5xl mx-auto w-full">
+      <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>
+        <strong>Demo Simulation Mode Active:</strong> Standard Supabase keys are currently template placeholders. Submissions and leads are handled in browser memory. Click <strong>Supabase Settings</strong> to connect live credentials.
+      </span>
+      <button onclick="openConfigModal()" class="ml-auto underline font-semibold hover:text-amber-200">Connect Live DB</button>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- Top KPI Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Surplus Items</p>
+          <h3 class="text-2xl font-bold text-white mt-0.5" id="kpi-listings">0</h3>
+          <span class="text-[11px] text-brand-400 font-medium flex items-center gap-1 mt-0.5">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-brand-400"></span> Available for matching
+          </span>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Discovered Commercial Buyers</p>
+          <h3 class="text-2xl font-bold text-white mt-0.5" id="kpi-leads">0</h3>
+          <span class="text-[11px] text-blue-400 font-medium flex items-center gap-1 mt-0.5">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-400"></span> Scraped via SerpApi Local
+          </span>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Search Geofence</p>
+          <h3 class="text-2xl font-bold text-white mt-0.5">5.0 km</h3>
+          <span class="text-[11px] text-emerald-400 font-medium flex items-center gap-1 mt-0.5">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Hyperlocal perimeter
+          </span>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Contacted Buyers</p>
+          <h3 class="text-2xl font-bold text-white mt-0.5" id="kpi-contacted">0</h3>
+          <span class="text-[11px] text-purple-400 font-medium flex items-center gap-1 mt-0.5">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-purple-400"></span> Outreach in progress
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Seller Form (Left) & Map / Leads (Right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- ================= LEFT COLUMN: SELLER FORM ================= -->
+      <section class="lg:col-span-5 bg-slate-900/70 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
+            <div class="flex items-center gap-2.5">
+              <span class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-400 flex items-center justify-center border border-brand-500/20">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </span>
+              <div>
+                <h2 class="text-lg font-semibold text-white">Post Surplus Inventory</h2>
+                <p class="text-xs text-slate-400">Submit new listings directly to Supabase</p>
+              </div>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 font-mono">POST /listings</span>
+          </div>
+
+          <!-- Form Element -->
+          <form id="seller-form" class="space-y-4">
+            
+            <!-- Item Name -->
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                Surplus Item Name <span class="text-emerald-400">*</span>
+              </label>
+              <input 
+                type="text" 
+                id="form-item-name" 
+                required 
+                placeholder="e.g. 500kg Organic Fresh Tomatoes, 200 Wooden Pallets" 
+                class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+              />
+            </div>
+
+            <!-- Category Selection -->
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                Industry Category <span class="text-emerald-400">*</span>
+              </label>
+              <select 
+                id="form-category" 
+                required
+                class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+              >
+                <option value="Food">Food (Fresh Produce, Bakery, Dairy, Agriculture, Perishables)</option>
+                <option value="Construction">Construction (Building Materials, Lumber, Bricks, Steel, Tiles, Scrap)</option>
+                <option value="Retail">Retail (Commercial Inventory, Electronics, Packaging, General Surplus)</option>
+              </select>
+            </div>
+
+            <!-- Quantity & Unit -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Quantity</label>
+                <input 
+                  type="number" 
+                  id="form-quantity" 
+                  value="100" 
+                  min="1" 
+                  class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Unit</label>
+                <select 
+                  id="form-unit" 
+                  class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+                >
+                  <option value="kg">Kilograms (kg)</option>
+                  <option value="units">Units / Pieces</option>
+                  <option value="pallets">Pallets</option>
+                  <option value="boxes">Boxes / Cartons</option>
+                  <option value="tons">Metric Tons</option>
+                  <option value="meters">Meters / Rolls</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Hyperlocal Coordinates & Map Pinning -->
+            <div class="border border-slate-800 bg-slate-950/70 rounded-xl p-3.5 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  </svg>
+                  Geographic Location (Lat / Lng)
+                </span>
+                
+                <button 
+                  type="button" 
+                  id="btn-geolocation" 
+                  class="text-[11px] font-medium text-brand-400 hover:text-brand-300 flex items-center gap-1 bg-brand-950/80 px-2 py-0.5 rounded border border-brand-800/60 transition"
+                >
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Detect My Location
+                </button>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <span class="text-[10px] text-slate-400 font-mono">Latitude:</span>
+                  <input 
+                    type="number" 
+                    step="0.0001" 
+                    id="form-lat" 
+                    required 
+                    value="30.1704" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-emerald-300 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-400 font-mono">Longitude:</span>
+                  <input 
+                    type="number" 
+                    step="0.0001" 
+                    id="form-lng" 
+                    required 
+                    value="77.2994" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-emerald-300 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+              </div>
+
+              <!-- Quick Location Presets -->
+              <div class="flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap">
+                <span>Presets:</span>
+                <button type="button" onclick="setCoordinates(30.1704, 77.2994, 'Jagadhri, Yamunanagar', 14)" class="hover:text-brand-400 px-1.5 py-0.5 rounded bg-brand-950 text-brand-300 border border-brand-800/80 font-medium">Jagadhri / Yamunanagar</button>
+                <button type="button" onclick="setCoordinates(28.6139, 77.2090, 'Delhi Industrial Hub', 13)" class="hover:text-brand-400 px-1.5 py-0.5 rounded bg-slate-800">Delhi</button>
+                <button type="button" onclick="setCoordinates(37.7749, -122.4194, 'San Francisco Bay Area', 13)" class="hover:text-brand-400 px-1.5 py-0.5 rounded bg-slate-800">SF</button>
+                <button type="button" onclick="setCoordinates(40.7128, -74.0060, 'New York City Metro', 13)" class="hover:text-brand-400 px-1.5 py-0.5 rounded bg-slate-800">NYC</button>
+              </div>
+
+              <p class="text-[11px] text-slate-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-brand-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                </svg>
+                Tip: Click anywhere on the map to pin your location!
+              </p>
+            </div>
+
+            <!-- Notes & Description -->
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Description / Batch Condition</label>
+              <textarea 
+                id="form-desc" 
+                rows="2" 
+                placeholder="Fresh batch packaged yesterday. Immediate dispatch required within 48h..." 
+                class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+              ></textarea>
+            </div>
+
+            <!-- Submit Button -->
+            <button 
+              type="submit" 
+              id="btn-submit-listing" 
+              class="w-full bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-500 hover:to-emerald-400 text-slate-950 font-bold py-3 px-4 rounded-xl shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2 transition duration-150 transform active:scale-[0.99]"
+            >
+              <svg class="w-5 h-5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Publish Listing to Engine</span>
+            </button>
+
+          </form>
+        </div>
+
+        <!-- Live Sync Footer Note -->
+        <div class="mt-4 pt-4 border-t border-slate-800/80 text-xs text-slate-400 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-brand-400"></span>
+            Automated SerpApi Trigger:
+          </span>
+          <span class="text-slate-300 font-mono">status = 'Available'</span>
+        </div>
+      </section>
+
+      <!-- ================= RIGHT COLUMN: INTERACTIVE MAP & BUYER LEADS ================= -->
+      <div class="lg:col-span-7 space-y-6">
+
+        <!-- MAP CONTAINER CARD -->
+        <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 shadow-xl">
+          <div class="flex items-center justify-between mb-3 px-1">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-brand-400 pulse-radar"></span>
+              <h3 class="text-sm font-semibold text-white">Hyperlocal Commercial Radar (5km Geofence)</h3>
+            </div>
+            
+            <div class="flex items-center gap-2 text-xs">
+              <span class="flex items-center gap-1 text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Surplus Listings
+              </span>
+              <span class="flex items-center gap-1 text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span> Discovered Buyers
+              </span>
+            </div>
+          </div>
+
+          <!-- OpenStreetMap Leaflet Container -->
+          <div id="map" class="h-80 w-full rounded-xl overflow-hidden border border-slate-800 z-10"></div>
+          
+          <div class="mt-2.5 flex items-center justify-between text-[11px] text-slate-400 px-1">
+            <span>Click map to relocate your seller pin or view buyer contact popups.</span>
+            <button onclick="resetMapView()" class="text-brand-400 hover:text-brand-300 underline font-medium">Recenter Map</button>
+          </div>
+        </div>
+
+        <!-- BUYER LEADS LIST VIEW -->
+        <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-base font-bold text-white">Discovered Commercial Buyers</h3>
+                <span id="leads-count-badge" class="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-950 border border-emerald-800 text-emerald-300">0 Leads</span>
+              </div>
+              <p class="text-xs text-slate-400">Closest immediate commercial buyers scraped via SerpApi Google Local</p>
+            </div>
+
+            <!-- Leads Filter Controls -->
+            <div class="flex items-center gap-2">
+              <select id="filter-lead-status" onchange="renderLeads()" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200">
+                <option value="ALL">All Statuses</option>
+                <option value="Discovered">Discovered</option>
+                <option value="Contacted">Contacted</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Leads Card List Container -->
+          <div id="leads-container" class="mt-4 space-y-3 max-h-[460px] overflow-y-auto pr-1">
+            <!-- Dynamically populated leads will render here -->
+            <div class="p-8 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl">
+              <svg class="w-10 h-10 mx-auto text-slate-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <p class="text-sm font-medium text-slate-400">Listening for discovered buyer leads...</p>
+              <p class="text-xs text-slate-500 mt-1">Submit a surplus listing above to trigger immediate local lead scraping.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Active Surplus Listings Table / Feed -->
+    <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+        <div>
+          <h3 class="text-base font-bold text-white">Active Platform Listings</h3>
+          <p class="text-xs text-slate-400">Live listings monitored by the Python Lead Generation Engine</p>
+        </div>
+        <span class="text-xs font-mono text-brand-400 bg-brand-950 px-2.5 py-1 rounded-md border border-brand-800">table: listings</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="bg-slate-950/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
+            <tr>
+              <th class="py-3 px-4">Item Name</th>
+              <th class="py-3 px-4">Category</th>
+              <th class="py-3 px-4">Quantity</th>
+              <th class="py-3 px-4">Location (Lat, Lng)</th>
+              <th class="py-3 px-4">Status</th>
+              <th class="py-3 px-4">Leads Found</th>
+              <th class="py-3 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="listings-tbody" class="divide-y divide-slate-800/60">
+            <!-- Dynamically populated listings rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= SUPABASE CONFIGURATION MODAL ================= -->
+  <div id="config-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+      
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            </svg>
+          </div>
+          <h3 class="font-bold text-white text-base">Supabase Live Connection</h3>
+        </div>
+        <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+
+      <p class="text-xs text-slate-400">
+        Direct browser REST client configured using standard <code class="text-emerald-400 font-mono">fetch()</code> to connect to your Supabase project.
+      </p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Supabase Project URL</label>
+          <input 
+            type="text" 
+            id="cfg-supabase-url" 
+            placeholder="https://xyzcompany.supabase.co" 
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Supabase Anon / Public Key</label>
+          <input 
+            type="password" 
+            id="cfg-supabase-key" 
+            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          />
+        </div>
+
+        <div id="cfg-test-result" class="text-xs p-2.5 rounded-lg hidden"></div>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+        <button 
+          type="button" 
+          onclick="useDemoMode()" 
+          class="text-xs text-slate-400 hover:text-amber-300 underline font-medium"
+        >
+          Reset to Demo Mode
+        </button>
+
+        <div class="flex items-center gap-2">
+          <button 
+            type="button" 
+            onclick="closeConfigModal()" 
+            class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+          >
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            id="btn-save-config" 
+            onclick="saveAndTestSupabaseConfig()" 
+            class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand-500 hover:bg-brand-400 text-slate-950 shadow-md transition"
+          >
+            Save & Connect
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 border border-brand-500/40 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-sm">
+    <div id="toast-icon" class="text-brand-400"></div>
+    <div id="toast-msg">Notification message</div>
+  </div>
+
+  <!-- ================= APPLICATION LOGIC SCRIPT ================= -->
+  <script>
+    /**
+     * SurplusLink Frontend Engine
+     * Pure vanilla JS client using standard browser fetch() for Supabase PostgREST
+     */
+
+    // ================= LOCAL FILE ROUTING & STORAGE COMPATIBILITY =================
+    // Prevents 'Access Denied' DOMException when running via local file:// protocol
+    const memoryStorage = {};
+
+    function safeGetStorage(key, fallback = "") {
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          return window.localStorage.getItem(key) || fallback;
+        }
+      } catch (err) {
+        console.warn("[Local File Routing] localStorage read blocked on file:// origin. Using fallback memory store.", err);
+      }
+      return memoryStorage[key] !== undefined ? memoryStorage[key] : fallback;
+    }
+
+    function safeSetStorage(key, value) {
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(key, value);
+          return;
+        }
+      } catch (err) {
+        console.warn("[Local File Routing] localStorage write blocked on file:// origin. Using fallback memory store.", err);
+      }
+      memoryStorage[key] = value;
+    }
+
+    function safeRemoveStorage(key) {
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.removeItem(key);
+          return;
+        }
+      } catch (err) {
+        console.warn("[Local File Routing] localStorage remove blocked on file:// origin.", err);
+      }
+      delete memoryStorage[key];
+    }
+
+    // Extract query and hash parameters for smooth local file routing
+    function getLocalRouteParams() {
+      const params = {};
+      try {
+        if (window.location.search) {
+          const sp = new URLSearchParams(window.location.search);
+          for (const [k, v] of sp.entries()) {
+            params[k.toLowerCase()] = v;
+          }
+        }
+        if (window.location.hash) {
+          const hashStr = window.location.hash.replace(/^#/, '');
+          if (hashStr.includes('=')) {
+            const hp = new URLSearchParams(hashStr);
+            for (const [k, v] of hp.entries()) {
+              params[k.toLowerCase()] = v;
+            }
+          } else if (hashStr) {
+            params['preset'] = hashStr.toLowerCase();
+          }
+        }
+      } catch (e) {
+        console.warn("[Local File Routing] Error reading route params:", e);
+      }
+      return params;
+    }
+
+    const routeParams = getLocalRouteParams();
+
+    // Configuration state (persisted via safe storage wrapper)
+    const STORAGE_KEY_URL = "surpluslink_supabase_url";
+    const STORAGE_KEY_KEY = "surpluslink_supabase_key";
+
+    let supabaseUrl = safeGetStorage(STORAGE_KEY_URL, "");
+    let supabaseKey = safeGetStorage(STORAGE_KEY_KEY, "");
+
+    // App state
+    let listings = [];
+    let leads = [];
+    let isConnectedToSupabase = false;
+    let pollIntervalId = null;
+
+    // Leaflet Map state
+    let map = null;
+    let sellerMarker = null;
+    let radiusCircle = null;
+    let listingsLayerGroup = null;
+    let leadsLayerGroup = null;
+
+    // Initial mock data used if Supabase is unconfigured / in demo mode
+    // Categories strictly allowed by database check constraint: 'Food', 'Construction', 'Retail'
+    function normalizeCategory(cat) {
+      if (!cat) return 'Food';
+      const c = String(cat).trim();
+      if (c === 'Food' || c === 'Construction' || c === 'Retail') {
+        return c;
+      }
+      const lower = c.toLowerCase();
+      if (lower.includes('food') || lower.includes('produce') || lower.includes('agri') || lower.includes('bakery') || lower.includes('dairy') || lower.includes('meat') || lower.includes('perish')) {
+        return 'Food';
+      }
+      if (lower.includes('construct') || lower.includes('build') || lower.includes('material') || lower.includes('brick') || lower.includes('steel') || lower.includes('lumber') || lower.includes('wood') || lower.includes('cement') || lower.includes('masonry')) {
+        return 'Construction';
+      }
+      return 'Retail';
+    }
+
+    // Cache flag for optional description column
+    let hasDescriptionColumn = null;
+
+    // Initial mock data used if Supabase is unconfigured / in demo mode
+    const mockListings = [
+      {
+        id: "d9e8712a-3021-4f51-bca2-819e6b341f01",
+        item_name: "500kg Fresh Organic Tomatoes",
+        category: "Food",
+        quantity: 500,
+        unit: "kg",
+        location_lat: 30.1704,
+        location_lng: 77.2994,
+        description: "Freshly harvested organic vine tomatoes ready for immediate pickup.",
+        status: "Available",
+        created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+      },
+      {
+        id: "a143f290-781b-419d-8ec0-21a4f02891bb",
+        item_name: "Surplus Red Clay Construction Bricks (2,000 units)",
+        category: "Construction",
+        quantity: 2000,
+        unit: "units",
+        location_lat: 30.1750,
+        location_lng: 77.2950,
+        description: "High-grade fired clay building bricks leftover from commercial development.",
+        status: "Available",
+        created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+      },
+      {
+        id: "3bc84992-1200-47fa-8022-990a4dfb7c31",
+        item_name: "Industrial Copper Wire & Cable Scrap (150kg)",
+        category: "Retail",
+        quantity: 150,
+        unit: "kg",
+        location_lat: 30.1650,
+        location_lng: 77.3050,
+        description: "Stripped clean electrical copper scrap ready for metal recyclers.",
+        status: "Available",
+        created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
+      }
+    ];
+
+    const mockLeads = [
+      {
+        id: "lead-01",
+        listing_id: "d9e8712a-3021-4f51-bca2-819e6b341f01",
+        business_name: "Metro Commercial Kitchen & Catering",
+        address: "Industrial Area Phase 1, Yamunanagar",
+        phone_number: "+91 98450 11223",
+        location_lat: 30.1740,
+        location_lng: 77.3020,
+        latitude: 30.1740,
+        longitude: 77.3020,
+        distance_km: 0.85,
+        lead_status: "Discovered",
+        query_used: "restaurants catering commercial kitchens food wholesalers",
+        created_at: new Date(Date.now() - 3600000 * 1.5).toISOString(),
+      },
+      {
+        id: "lead-02",
+        listing_id: "d9e8712a-3021-4f51-bca2-819e6b341f01",
+        business_name: "Apex Food Distributors & Supply",
+        address: "Jagadhri Workshop Road, Yamunanagar",
+        phone_number: "+91 99000 44521",
+        location_lat: 30.1680,
+        location_lng: 77.2920,
+        latitude: 30.1680,
+        longitude: 77.2920,
+        distance_km: 1.62,
+        lead_status: "Contacted",
+        query_used: "restaurants catering commercial kitchens food wholesalers",
+        created_at: new Date(Date.now() - 3600000 * 1.4).toISOString(),
+      },
+      {
+        id: "lead-03",
+        listing_id: "a143f290-781b-419d-8ec0-21a4f02891bb",
+        business_name: "Summit Building & Contractor Supply",
+        address: "Timber Market Road, Yamunanagar",
+        phone_number: "+91 97411 87654",
+        location_lat: 30.1810,
+        location_lng: 77.2980,
+        latitude: 30.1810,
+        longitude: 77.2980,
+        distance_km: 1.15,
+        lead_status: "Discovered",
+        query_used: "building contractors masonry construction suppliers",
+        created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+      },
+      {
+        id: "lead-04",
+        listing_id: "3bc84992-1200-47fa-8022-990a4dfb7c31",
+        business_name: "Metal & Industrial Recycling Yard",
+        address: "Near Old Jagadhri Gate, Yamunanagar",
+        phone_number: "+91 96320 55410",
+        location_lat: 30.1610,
+        location_lng: 77.3080,
+        latitude: 30.1610,
+        longitude: 77.3080,
+        distance_km: 0.72,
+        lead_status: "Discovered",
+        query_used: "scrap metal dealers scrap yard metal recycling buyers",
+        created_at: new Date(Date.now() - 3600000 * 6).toISOString(),
+      }
+    ];
+
+    // Helper: detect if a string is a template placeholder
+    function isPlaceholder(str) {
+      if (!str) return true;
+      const s = str.trim().toLowerCase();
+      return s.startsWith("[") || s.startsWith("<") || s.includes("your") || s.includes("token") || s === "null" || s === "";
+    }
+
+    // Initialize Map Component with Google Hybrid / Satellite Scenery & Local File Routing
+    function initMap() {
+      // Default coordinates locked onto user's home city: Jagadhri, Yamunanagar, Haryana
+      let initialLat = 30.1704;
+      let initialLng = 77.2994;
+      let initialZoom = 14;
+
+      if (routeParams.lat && !isNaN(parseFloat(routeParams.lat))) {
+        initialLat = parseFloat(routeParams.lat);
+      }
+      if (routeParams.lng && !isNaN(parseFloat(routeParams.lng))) {
+        initialLng = parseFloat(routeParams.lng);
+      }
+      if (routeParams.zoom && !isNaN(parseInt(routeParams.zoom))) {
+        initialZoom = parseInt(routeParams.zoom);
+      }
+
+      // Check preset routes in file URL (e.g. index.html#jagadhri or index.html#delhi)
+      if (routeParams.preset === 'jagadhri' || routeParams.preset === 'yamunanagar') {
+        initialLat = 30.1704; initialLng = 77.2994; initialZoom = 14;
+      } else if (routeParams.preset === 'ambala') {
+        initialLat = 30.3782; initialLng = 76.7767; initialZoom = 13;
+      } else if (routeParams.preset === 'delhi') {
+        initialLat = 28.6139; initialLng = 77.2090; initialZoom = 13;
+      } else if (routeParams.preset === 'nyc') {
+        initialLat = 40.7128; initialLng = -74.0060; initialZoom = 13;
+      } else if (routeParams.preset === 'sf') {
+        initialLat = 37.7749; initialLng = -122.4194; initialZoom = 13;
+      }
+
+      // Sync form input fields with resolved coordinates
+      setFormCoordinates(initialLat, initialLng);
+
+      map = L.map('map', {
+        zoomControl: true,
+        attributionControl: false
+      }).setView([initialLat, initialLng], initialZoom);
+
+      // ================= GOOGLE HYBRID / SATELLITE TILE OVERRIDE =================
+      // Override 1: Official Google Hybrid / Satellite URL parameter template
+      const GOOGLE_SATELLITE_OVERRIDE_URL = 'https://google.com{x}&y={y}&z={z}';
+
+      // Primary tile URL: Auto-resolve to Google's high-res hybrid/satellite XYZ servers
+      // (lyrs=y: Google Hybrid combining satellite photo imagery with roads and labels)
+      let googleHybridTileUrl = GOOGLE_SATELLITE_OVERRIDE_URL;
+      if (googleHybridTileUrl.includes('google.com{x}')) {
+        googleHybridTileUrl = 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
+      }
+
+      // Google Hybrid Layer (Satellite + Road/City Labels + Rich Scenery Details)
+      const googleHybridLayer = L.tileLayer(googleHybridTileUrl, {
+        maxZoom: 20,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps (Satellite & Hybrid Scenery)',
+        crossOrigin: false, // Ensures local file:// routing works without CORS origin blocks
+      }).addTo(map);
+
+      // Google Terrain Layer (Rich Topographic Elevation, Shading & Scenery)
+      const googleTerrainLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps (Terrain & Elevation)',
+        crossOrigin: false,
+      });
+
+      // Google Satellite Pure (Raw Photographic Aerial Imagery)
+      const googleSatellitePure = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps (Satellite)',
+        crossOrigin: false,
+      });
+
+      // Add Layer Selector Control for fast switching between Hybrid, Terrain, and Pure Satellite
+      const baseMaps = {
+        "Google Hybrid (Satellite + Roads)": googleHybridLayer,
+        "Google Terrain (Elevation & Scenery)": googleTerrainLayer,
+        "Google Satellite (Pure Aerial)": googleSatellitePure,
+      };
+      L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+      // Trigger map resize invalidation for smooth local file rendering
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+      }, 200);
+
+      // Layer groups for markers
+      listingsLayerGroup = L.layerGroup().addTo(map);
+      leadsLayerGroup = L.layerGroup().addTo(map);
+
+      // Seller draggable marker for the form
+      const sellerIcon = L.divIcon({
+        className: 'custom-seller-pin',
+        html: `<div class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-lg text-slate-950 font-bold text-xs">S</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      sellerMarker = L.marker([defaultLat, defaultLng], {
+        icon: sellerIcon,
+        draggable: true
+      }).addTo(map);
+
+      // Radius circle showing the 5km geofence
+      radiusCircle = L.circle([defaultLat, defaultLng], {
+        radius: 5000,
+        color: '#10b981',
+        fillColor: '#10b981',
+        fillOpacity: 0.08,
+        weight: 1.5,
+        dashArray: '4, 4'
+      }).addTo(map);
+
+      // Update coordinates input on marker drag
+      sellerMarker.on('dragend', function (e) {
+        const coord = e.target.getLatLng();
+        setFormCoordinates(coord.lat, coord.lng);
+        radiusCircle.setLatLng(coord);
+      });
+
+      // Update coordinates on map click
+      map.on('click', function (e) {
+        setFormCoordinates(e.latlng.lat, e.latlng.lng);
+        sellerMarker.setLatLng(e.latlng);
+        radiusCircle.setLatLng(e.latlng);
+        showToast("Location updated to clicked coordinates", "pin");
+      });
+    }
+
+    function setFormCoordinates(lat, lng) {
+      document.getElementById('form-lat').value = lat.toFixed(4);
+      document.getElementById('form-lng').value = lng.toFixed(4);
+    }
+
+    function setCoordinates(lat, lng, name, zoom = 14) {
+      setFormCoordinates(lat, lng);
+      if (sellerMarker) sellerMarker.setLatLng([lat, lng]);
+      if (radiusCircle) radiusCircle.setLatLng([lat, lng]);
+      if (map) map.setView([lat, lng], zoom);
+      showToast(`Location set to ${name}`, "pin");
+    }
+
+    function resetMapView() {
+      const lat = parseFloat(document.getElementById('form-lat').value) || 30.1704;
+      const lng = parseFloat(document.getElementById('form-lng').value) || 77.2994;
+      map.setView([lat, lng], 14);
+    }
+
+    // Refresh Map Markers for Listings & Discovered Leads
+    function updateMapMarkers() {
+      if (!map) return;
+      listingsLayerGroup.clearLayers();
+      leadsLayerGroup.clearLayers();
+
+      // Plot Listings
+      listings.forEach(listing => {
+        const lat = parseFloat(listing.location_lat);
+        const lng = parseFloat(listing.location_lng);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          const icon = L.divIcon({
+            className: 'custom-listing-pin',
+            html: `<div class="w-6 h-6 rounded-full bg-emerald-600 border border-emerald-300 text-white flex items-center justify-center shadow font-semibold text-[10px]" title="${listing.item_name}">📦</div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+          });
+
+          const countLeads = leads.filter(l => l.listing_id === listing.id).length;
+          const marker = L.marker([lat, lng], { icon })
+            .bindPopup(`
+              <div class="text-xs p-1 space-y-1">
+                <div class="font-bold text-emerald-400 text-sm">${listing.item_name}</div>
+                <div class="text-slate-300">Category: <span class="text-slate-100 font-medium">${listing.category}</span></div>
+                <div class="text-slate-300">Quantity: ${listing.quantity || 1} ${listing.unit || 'units'}</div>
+                <div class="text-slate-400 text-[10px]">Status: <span class="text-emerald-400 font-semibold">${listing.status}</span></div>
+                <div class="pt-1.5 border-t border-slate-700 text-emerald-300 font-semibold">${countLeads} Buyer Leads Discovered</div>
+              </div>
+            `);
+          listingsLayerGroup.addLayer(marker);
+        }
+      });
+
+      // Plot Discovered Buyer Leads
+      leads.forEach(lead => {
+        const lat = parseFloat(lead.location_lat != null ? lead.location_lat : lead.latitude);
+        const lng = parseFloat(lead.location_lng != null ? lead.location_lng : lead.longitude);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          const icon = L.divIcon({
+            className: 'custom-lead-pin',
+            html: `<div class="w-6 h-6 rounded-full bg-blue-600 border border-blue-300 text-white flex items-center justify-center shadow font-semibold text-[10px]" title="${escapeHtml(lead.business_name)}">🏢</div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+          });
+
+          const marker = L.marker([lat, lng], { icon })
+            .bindPopup(`
+              <div class="text-xs p-1 space-y-1.5 max-w-[220px]">
+                <div class="font-bold text-blue-400 text-sm">${escapeHtml(lead.business_name)}</div>
+                <div class="text-slate-300 text-[11px]">${escapeHtml(lead.address || 'Hyperlocal commercial buyer')}</div>
+                <div class="text-emerald-400 font-mono text-[11px] font-semibold">${escapeHtml(lead.phone_number || 'No phone')}</div>
+                <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800">
+                  <span>Distance: ${lead.distance_km ? lead.distance_km + ' km' : 'Within 5km'}</span>
+                  <span class="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300 font-medium">${escapeHtml(lead.lead_status)}</span>
+                </div>
+                ${lead.phone_number ? `<a href="tel:${escapeHtml(lead.phone_number)}" class="block text-center bg-blue-600 hover:bg-blue-500 text-white rounded py-1 text-[11px] font-medium mt-1">Call Commercial Buyer</a>` : ''}
+              </div>
+            `);
+          leadsLayerGroup.addLayer(marker);
+        }
+      });
+    }
+
+    // ================= SUPABASE REST API CALLS (STANDARD FETCH) =================
+
+    /**
+     * Standard Fetch Headers for PostgREST
+     */
+    function getSupabaseHeaders() {
+      return {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      };
+    }
+
+    /**
+     * Fetch Listings from Supabase using standard browser fetch()
+     */
+    async function fetchListingsFromSupabase() {
+      if (isPlaceholder(supabaseUrl) || isPlaceholder(supabaseKey)) {
+        return mockListings;
+      }
+      const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/listings?select=*&order=created_at.desc`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: getSupabaseHeaders()
+      });
+      if (!res.ok) throw new Error(`Supabase listings error: ${res.status} ${res.statusText}`);
+      return await res.json();
+    }
+
+    /**
+     * Fetch Discovered Leads from Supabase using standard browser fetch()
+     */
+    async function fetchLeadsFromSupabase() {
+      if (isPlaceholder(supabaseUrl) || isPlaceholder(supabaseKey)) {
+        return mockLeads;
+      }
+      const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/scraped_leads?select=*&order=created_at.desc`;
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: getSupabaseHeaders()
+      });
+      if (!res.ok) throw new Error(`Supabase scraped_leads error: ${res.status} ${res.statusText}`);
+      return await res.json();
+    }
+
+    /**
+     * Insert a new surplus listing into Supabase using standard browser fetch()
+     */
+    async function insertListingToSupabase(listingData) {
+      // Ensure category is strictly normalized to allowed check constraint values ('Food', 'Construction', 'Retail')
+      const safeCategory = normalizeCategory(listingData.category);
+
+      if (isPlaceholder(supabaseUrl) || isPlaceholder(supabaseKey)) {
+        // Simulated local insertion
+        const newMock = {
+          id: 'sim-' + Date.now().toString(36),
+          ...listingData,
+          category: safeCategory,
+          created_at: new Date().toISOString()
+        };
+        mockListings.unshift(newMock);
+        
+        // Also simulate automated lead discovery for this listing after 1.5 seconds!
+        setTimeout(() => simulateAutomatedLeadGeneration(newMock), 1500);
+        return newMock;
+      }
+
+      const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/listings`;
+      let payload = { 
+        ...listingData,
+        category: safeCategory
+      };
+
+      // If known that description column does not exist on Supabase, omit it upfront
+      if (hasDescriptionColumn === false) {
+        delete payload.description;
+      }
+
+      const MAX_RETRIES = 5;
+
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (payload.description) {
+            hasDescriptionColumn = true; // Supabase accepted description column
+          }
+          return Array.isArray(data) ? data[0] : data;
+        }
+
+        const errorText = await res.text();
+        let errorJson = null;
+        try { errorJson = JSON.parse(errorText); } catch (_) {}
+        const fullErrMsg = (errorJson?.message || errorText || "").toLowerCase();
+
+        // Detect check constraint violation on category: "listings_category_check"
+        if (fullErrMsg.includes('listings_category_check') || fullErrMsg.includes('category')) {
+          console.warn(`[Supabase Auto-Adapt] Category '${payload.category}' failed constraint 'listings_category_check'. Normalizing to 'Food' and retrying...`);
+          payload.category = 'Food';
+          continue; // Automatically retry with guaranteed valid category!
+        }
+
+        // Detect PGRST204 missing column in Supabase schema cache (e.g. 'description', 'unit', etc.)
+        const missingColMatch = (errorJson?.message || errorText).match(/Could not find the '([^']+)' column/i);
+        if (missingColMatch && missingColMatch[1]) {
+          const missingCol = missingColMatch[1];
+          console.warn(`[Supabase Auto-Adapt] Column '${missingCol}' does not exist in 'listings' table. Auto-omitting and retrying...`);
+          if (missingCol === 'description') {
+            hasDescriptionColumn = false;
+          }
+          delete payload[missingCol];
+          continue; // Automatically retry without the missing column!
+        }
+
+        // If error is not recoverable or max retries reached
+        throw new Error(`Failed to post listing: ${res.status} - ${errorJson?.message || errorText}`);
+      }
+    }
+
+    /**
+     * Update lead status in Supabase (e.g. Discovered -> Contacted) using fetch()
+     */
+    async function updateLeadStatus(leadId, newStatus) {
+      if (isPlaceholder(supabaseUrl) || isPlaceholder(supabaseKey)) {
+        const item = leads.find(l => l.id === leadId);
+        if (item) item.lead_status = newStatus;
+        renderLeads();
+        renderKPIs();
+        showToast(`Lead marked as ${newStatus}`, "check");
+        return;
+      }
+
+      const url = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/scraped_leads?id=eq.${encodeURIComponent(leadId)}`;
+      try {
+        const res = await fetch(url, {
+          method: 'PATCH',
+          headers: getSupabaseHeaders(),
+          body: JSON.stringify({ lead_status: newStatus })
+        });
+        if (!res.ok) throw new Error(`PATCH failed: ${res.status}`);
+        
+        const item = leads.find(l => l.id === leadId);
+        if (item) item.lead_status = newStatus;
+        renderLeads();
+        renderKPIs();
+        showToast(`Lead updated to ${newStatus}`, "check");
+      } catch (err) {
+        console.error(err);
+        showToast(`Error updating lead: ${err.message}`, "error");
+      }
+    }
+
+    /**
+     * Demo simulation of the Python SerpApi lead generation engine
+     */
+    function simulateAutomatedLeadGeneration(newListing) {
+      const buyerTemplates = {
+        'Food': [
+          { name: "FarmFresh Wholesale Collective", addr: "410 Produce Row", phone: "+91 98450 11223" },
+          { name: "Golden Gate Commercial Kitchens", addr: "12 Mission Blvd", phone: "+91 99000 44521" },
+          { name: "Urban Harvest Restaurant Group", addr: "900 Valencia St", phone: "+91 97411 87654" },
+        ],
+        'Construction': [
+          { name: "Pioneer General Contractors", addr: "800 Industrial Way", phone: "+91 96320 55410" },
+          { name: "Bay Masonry & Building Supplies", addr: "220 Quarry Rd", phone: "+91 98450 66788" },
+          { name: "Apex Commercial Renovation", addr: "55 Builder Court", phone: "+91 99000 77899" },
+        ],
+        'Retail': [
+          { name: "Pacific Metal Recycling Yard", addr: "140 Pier 96", phone: "+91 97411 22334" },
+          { name: "Apex Scrap & Copper Buyers", addr: "300 Depot St", phone: "+91 96320 33445" },
+          { name: "Regional EcoRecycle Facility", addr: "500 Logistics Loop", phone: "+91 98450 44556" },
+        ],
+      };
+
+      const normCategory = normalizeCategory(newListing.category);
+      const candidates = buyerTemplates[normCategory] || [
+        { name: "Commercial Wholesale Liquidators", addr: "100 Enterprise Way", phone: "+91 98450 88990" },
+        { name: "Metro Regional Supply Center", addr: "250 Distribution Rd", phone: "+91 99000 99001" },
+        { name: "Prime B2B Surplus Buyers", addr: "300 Commerce Blvd", phone: "+91 97411 00112" },
+      ];
+
+      candidates.forEach((cand, idx) => {
+        const offsetLat = (Math.random() - 0.5) * 0.04;
+        const offsetLng = (Math.random() - 0.5) * 0.04;
+        const dist = (0.6 + idx * 0.8 + Math.random() * 0.4).toFixed(2);
+        const leadLat = parseFloat((Number(newListing.location_lat) + offsetLat).toFixed(4));
+        const leadLng = parseFloat((Number(newListing.location_lng) + offsetLng).toFixed(4));
+        const newLead = {
+          id: 'lead-sim-' + Date.now().toString(36) + '-' + idx,
+          listing_id: newListing.id,
+          business_name: cand.name,
+          address: cand.addr + ", Local Area",
+          phone_number: cand.phone,
+          location_lat: leadLat,
+          location_lng: leadLng,
+          latitude: leadLat,
+          longitude: leadLng,
+          distance_km: parseFloat(dist),
+          lead_status: "Discovered",
+          query_used: `${newListing.item_name} commercial wholesale buyers`,
+          created_at: new Date().toISOString()
+        };
+        mockLeads.unshift(newLead);
+      });
+
+      syncData();
+      showToast(`SerpApi Engine found 3 immediate commercial buyers for "${newListing.item_name}"!`, "rocket");
+    }
+
+    // ================= SYNC & RENDERING =================
+
+    async function syncData() {
+      const refreshIcon = document.getElementById('icon-refresh');
+      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+      try {
+        const [fetchedListings, fetchedLeads] = await Promise.all([
+          fetchListingsFromSupabase(),
+          fetchLeadsFromSupabase()
+        ]);
+
+        listings = fetchedListings || [];
+        leads = fetchedLeads || [];
+        
+        isConnectedToSupabase = !isPlaceholder(supabaseUrl) && !isPlaceholder(supabaseKey);
+        updateConnectionStatusUI(true);
+
+        renderKPIs();
+        renderListingsTable();
+        renderLeads();
+        updateMapMarkers();
+      } catch (err) {
+        console.warn("Supabase fetch failed; running in fallback mode:", err);
+        isConnectedToSupabase = false;
+        updateConnectionStatusUI(false, err.message);
+
+        // Fallback to local memory mocks
+        listings = mockListings;
+        leads = mockLeads;
+        renderKPIs();
+        renderListingsTable();
+        renderLeads();
+        updateMapMarkers();
+      } finally {
+        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+      }
+    }
+
+    function updateConnectionStatusUI(success, errorMsg = "") {
+      const indicator = document.getElementById('conn-indicator');
+      const connText = document.getElementById('conn-text');
+      const banner = document.getElementById('notice-banner');
+
+      if (isConnectedToSupabase && success) {
+        indicator.className = "w-2 h-2 rounded-full bg-emerald-400";
+        connText.textContent = "Supabase Live";
+        banner.classList.add('hidden');
+      } else {
+        indicator.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+        connText.textContent = isPlaceholder(supabaseUrl) ? "Demo Mode (Mock)" : "Connection Error";
+        banner.classList.remove('hidden');
+      }
+    }
+
+    function renderKPIs() {
+      const availableListings = listings.filter(l => l.status === 'Available').length;
+      const discoveredLeads = leads.length;
+      const contactedLeads = leads.filter(l => l.lead_status === 'Contacted').length;
+
+      document.getElementById('kpi-listings').textContent = availableListings;
+      document.getElementById('kpi-leads').textContent = discoveredLeads;
+      document.getElementById('kpi-contacted').textContent = contactedLeads;
+      
+      document.getElementById('stat-listings-count').textContent = availableListings;
+      document.getElementById('stat-leads-count').textContent = discoveredLeads;
+      document.getElementById('leads-count-badge').textContent = `${discoveredLeads} Leads`;
+    }
+
+    function renderListingsTable() {
+      const tbody = document.getElementById('listings-tbody');
+      if (!tbody) return;
+
+      if (listings.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="py-6 text-center text-slate-500">No surplus listings found. Use the form above to add your first batch.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = listings.map(item => {
+        const itemLeadsCount = leads.filter(l => l.listing_id === item.id).length;
+        const statusColor = item.status === 'Available' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : 'bg-slate-800 text-slate-300 border-slate-700';
+
+        return `
+          <tr class="hover:bg-slate-900/40 transition">
+            <td class="py-3 px-4 font-medium text-slate-100 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+              ${escapeHtml(item.item_name)}
+            </td>
+            <td class="py-3 px-4 text-slate-300">${escapeHtml(item.category)}</td>
+            <td class="py-3 px-4 font-mono text-slate-200">${item.quantity || 1} ${escapeHtml(item.unit || 'units')}</td>
+            <td class="py-3 px-4 font-mono text-slate-400 text-[11px]">
+              ${Number(item.location_lat).toFixed(4)}, ${Number(item.location_lng).toFixed(4)}
+            </td>
+            <td class="py-3 px-4">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusColor}">
+                ${escapeHtml(item.status || 'Available')}
+              </span>
+            </td>
+            <td class="py-3 px-4">
+              <span class="font-semibold text-brand-400 font-mono">${itemLeadsCount}</span> commercial buyers
+            </td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="focusListingOnMap(${item.location_lat}, ${item.location_lng}, '${escapeHtml(item.item_name)}')" class="text-brand-400 hover:text-brand-300 font-medium text-xs">
+                View on Map
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderLeads() {
+      const container = document.getElementById('leads-container');
+      const filter = document.getElementById('filter-lead-status').value;
+      if (!container) return;
+
+      let filtered = leads;
+      if (filter !== 'ALL') {
+        filtered = leads.filter(l => l.lead_status === filter);
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl">
+            <p class="text-sm font-medium text-slate-400">No leads matching status "${filter}".</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(lead => {
+        const matchingListing = listings.find(l => l.id === lead.listing_id);
+        const listingTitle = matchingListing ? matchingListing.item_name : "Surplus Item";
+        const isContacted = lead.lead_status === 'Contacted';
+        const leadLat = lead.location_lat != null ? lead.location_lat : lead.latitude;
+        const leadLng = lead.location_lng != null ? lead.location_lng : lead.longitude;
+
+        return `
+          <div class="bg-slate-950/80 border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition shadow-sm space-y-2.5">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-bold text-white">${escapeHtml(lead.business_name)}</h4>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold ${isContacted ? 'bg-purple-950 border border-purple-800 text-purple-300' : 'bg-blue-950 border border-blue-800 text-blue-300'}">
+                    ${escapeHtml(lead.lead_status)}
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  </svg>
+                  ${escapeHtml(lead.address || 'Hyperlocal commercial buyer')}
+                </p>
+              </div>
+
+              <!-- Distance Pill -->
+              <span class="text-xs font-mono font-semibold px-2 py-1 rounded bg-slate-900 border border-slate-800 text-brand-400 whitespace-nowrap">
+                ${lead.distance_km ? lead.distance_km + ' km' : '< 5.0 km'}
+              </span>
+            </div>
+
+            <!-- Matched Inventory Bar -->
+            <div class="bg-slate-900/90 rounded-lg p-2 flex items-center justify-between text-[11px] text-slate-300">
+              <span class="truncate max-w-[280px]">🎯 Matched: <strong>${escapeHtml(listingTitle)}</strong></span>
+              <span class="text-slate-400 font-mono text-[10px]">SerpApi Verified</span>
+            </div>
+
+            <!-- Action Row -->
+            <div class="flex items-center justify-between pt-1 gap-2">
+              <div class="flex items-center gap-2 text-xs">
+                ${lead.phone_number ? `
+                  <a href="tel:${escapeHtml(lead.phone_number)}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold transition">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    ${escapeHtml(lead.phone_number)}
+                  </a>
+                ` : `<span class="text-slate-500 text-[11px]">Phone unlisted</span>`}
+                
+                <button onclick="focusLeadOnMap(${leadLat}, ${leadLng}, '${escapeHtml(lead.business_name)}')" class="text-slate-400 hover:text-slate-200 px-2 py-1 text-xs underline">
+                  Locate
+                </button>
+              </div>
+
+              <!-- Status Toggle -->
+              <button 
+                onclick="updateLeadStatus('${lead.id}', '${isContacted ? 'Discovered' : 'Contacted'}')"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 transition"
+              >
+                ${isContacted ? 'Revert to Discovered' : '✓ Mark Contacted'}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function focusListingOnMap(lat, lng, name) {
+      if (!map) return;
+      const parsedLat = parseFloat(lat);
+      const parsedLng = parseFloat(lng);
+      if (isNaN(parsedLat) || isNaN(parsedLng)) {
+        showToast(`Coordinates unlisted for ${name}`, "pin");
+        return;
+      }
+      map.flyTo([parsedLat, parsedLng], 14, { duration: 1 });
+      showToast(`Panned to listing: ${name}`, "pin");
+    }
+
+    function focusLeadOnMap(lat, lng, name) {
+      if (!map) return;
+      const parsedLat = parseFloat(lat);
+      const parsedLng = parseFloat(lng);
+      if (isNaN(parsedLat) || isNaN(parsedLng)) {
+        showToast(`Coordinates unlisted for ${name}`, "pin");
+        return;
+      }
+      map.flyTo([parsedLat, parsedLng], 15, { duration: 1 });
+      showToast(`Targeted commercial buyer: ${name}`, "building");
+    }
+
+    // ================= SELLER FORM HANDLER =================
+
+    document.getElementById('seller-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const submitBtn = document.getElementById('btn-submit-listing');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `
+        <svg class="w-5 h-5 animate-spin text-slate-950" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Publishing to Supabase...</span>
+      `;
+
+      try {
+        const itemName = document.getElementById('form-item-name').value.trim();
+        const rawCategory = document.getElementById('form-category').value;
+        const category = normalizeCategory(rawCategory);
+        const qtyNum = parseFloat(document.getElementById('form-quantity').value) || 100;
+        const unitVal = document.getElementById('form-unit').value || 'kg';
+        const lat = parseFloat(document.getElementById('form-lat').value);
+        const lng = parseFloat(document.getElementById('form-lng').value);
+        const desc = document.getElementById('form-desc').value.trim();
+
+        // Default 7 days expiry timestamp
+        const expiry = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+
+        const payload = {
+          business_name: "SurplusLink Verified Seller",
+          item_name: itemName,
+          category: category,
+          quantity: `${qtyNum} ${unitVal}`,
+          location_lat: lat,
+          location_lng: lng,
+          expiry_timestamp: expiry,
+          original_price: 2000,
+          price: 900,
+          status: 'Available'
+        };
+
+        if (desc && hasDescriptionColumn !== false) {
+          payload.description = desc;
+        }
+
+        const created = await insertListingToSupabase(payload);
+        showToast(`Listing "${payload.item_name}" published! Hyperlocal engine active.`, "check");
+        
+        // Reset form
+        document.getElementById('form-item-name').value = '';
+        document.getElementById('form-desc').value = '';
+        
+        // Re-sync UI
+        await syncData();
+
+      } catch (err) {
+        console.error(err);
+        showToast(`Submission failed: ${err.message}`, "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `
+          <svg class="w-5 h-5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Publish Listing to Engine</span>
+        `;
+      }
+    });
+
+    // Default fallback coordinates: Jagadhri, Yamunanagar, Haryana
+    const JAGADHRI_FALLBACK_LAT = 30.1704;
+    const JAGADHRI_FALLBACK_LNG = 77.2994;
+    const JAGADHRI_REGION_NAME = "Jagadhri, Yamunanagar, Haryana";
+    const JAGADHRI_FALLBACK_ZOOM = 14;
+
+    // Geolocation API integration with Wi-Fi triangulation & robust Jagadhri / Yamunanagar fallback
+    document.getElementById('btn-geolocation').addEventListener('click', function () {
+      if (!navigator.geolocation) {
+        showToast(`Geolocation not supported by browser. Centered on ${JAGADHRI_REGION_NAME}.`, "pin");
+        setCoordinates(JAGADHRI_FALLBACK_LAT, JAGADHRI_FALLBACK_LNG, JAGADHRI_REGION_NAME, JAGADHRI_FALLBACK_ZOOM);
+        return;
+      }
+
+      showToast("Triangulating location via Wi-Fi / network...", "pin");
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setCoordinates(lat, lng, "Current Detected Location", JAGADHRI_FALLBACK_ZOOM);
+          showToast(`Location detected: (${lat.toFixed(4)}, ${lng.toFixed(4)})`, "check");
+        },
+        (err) => {
+          console.warn(`Geolocation error (${err.code}: ${err.message}). Activating Jagadhri/Yamunanagar fallback.`);
+          // Robust error callback: immediately center and drop seller pin over Jagadhri/Yamunanagar district at zoom level 14
+          setCoordinates(JAGADHRI_FALLBACK_LAT, JAGADHRI_FALLBACK_LNG, JAGADHRI_REGION_NAME, JAGADHRI_FALLBACK_ZOOM);
+          showToast(`Location timed out or unavailable. Centered on ${JAGADHRI_REGION_NAME}.`, "pin");
+        },
+        { enableHighAccuracy: false, timeout: 10000, maxAge: 0 }
+      );
+    });
+
+    // Refresh button event
+    document.getElementById('btn-refresh').addEventListener('click', () => {
+      syncData();
+      showToast("Synchronized with Supabase", "check");
+    });
+
+    // ================= CONFIGURATION MODAL =================
+
+    function openConfigModal() {
+      document.getElementById('cfg-supabase-url').value = supabaseUrl;
+      document.getElementById('cfg-supabase-key').value = supabaseKey;
+      document.getElementById('cfg-test-result').classList.add('hidden');
+      document.getElementById('config-modal').classList.remove('hidden');
+    }
+
+    function closeConfigModal() {
+      document.getElementById('config-modal').classList.add('hidden');
+    }
+
+    document.getElementById('btn-open-config').addEventListener('click', openConfigModal);
+
+    async function saveAndTestSupabaseConfig() {
+      const urlInput = document.getElementById('cfg-supabase-url').value.trim();
+      const keyInput = document.getElementById('cfg-supabase-key').value.trim();
+      const testResult = document.getElementById('cfg-test-result');
+      const saveBtn = document.getElementById('btn-save-config');
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Testing...";
+      testResult.classList.remove('hidden');
+      testResult.className = "text-xs p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-300";
+      testResult.textContent = "Testing connection via fetch() to Supabase REST endpoint...";
+
+      try {
+        const testEndpoint = `${urlInput.replace(/\/$/, '')}/rest/v1/listings?select=id&limit=1`;
+        const res = await fetch(testEndpoint, {
+          method: 'GET',
+          headers: {
+            'apikey': keyInput,
+            'Authorization': `Bearer ${keyInput}`
+          }
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        // Successfully connected!
+        supabaseUrl = urlInput;
+        supabaseKey = keyInput;
+        safeSetStorage(STORAGE_KEY_URL, supabaseUrl);
+        safeSetStorage(STORAGE_KEY_KEY, supabaseKey);
+
+        testResult.className = "text-xs p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-800 text-emerald-300";
+        testResult.textContent = "✓ Connection successful! Tables detected. Saving settings...";
+
+        setTimeout(() => {
+          closeConfigModal();
+          syncData();
+          showToast("Connected to live Supabase database!", "check");
+        }, 1000);
+
+      } catch (err) {
+        testResult.className = "text-xs p-2.5 rounded-lg bg-red-950/80 border border-red-800 text-red-300";
+        testResult.textContent = `Connection failed: ${err.message}. Check URL & Anon Key.`;
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save & Connect";
+      }
+    }
+
+    function useDemoMode() {
+      supabaseUrl = "";
+      supabaseKey = "";
+      safeRemoveStorage(STORAGE_KEY_URL);
+      safeRemoveStorage(STORAGE_KEY_KEY);
+      closeConfigModal();
+      syncData();
+      showToast("Switched to Demo Simulation Mode", "check");
+    }
+
+    // ================= TOAST NOTIFICATION UTILITY =================
+
+    function showToast(message, type = "info") {
+      const toast = document.getElementById('toast');
+      const msg = document.getElementById('toast-msg');
+      const icon = document.getElementById('toast-icon');
+
+      const icons = {
+        check: `<svg class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>`,
+        error: `<svg class="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>`,
+        pin: `<svg class="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /></svg>`,
+        building: `<svg class="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>`,
+        rocket: `<svg class="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`,
+        info: `<svg class="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
+      };
+
+      icon.innerHTML = icons[type] || icons.info;
+      msg.textContent = message;
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 4000);
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // ================= INITIAL STARTUP =================
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      syncData();
+
+      // Ensure Leaflet recalculates tile geometry when opened locally from file://
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+      }, 300);
+
+      window.addEventListener('resize', () => {
+        if (map) map.invalidateSize();
+      });
+
+      // Background polling: check Supabase every 5 seconds for new leads or listings
+      pollIntervalId = setInterval(() => {
+        syncData();
+      }, 5000);
+    });
+  </script>
+</body>
+</html>
